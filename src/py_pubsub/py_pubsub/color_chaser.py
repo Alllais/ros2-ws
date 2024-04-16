@@ -34,11 +34,12 @@ class ColourChaser(Node):
         # Convert ROS Image message to OpenCV image
         current_frame = self.br.imgmsg_to_cv2(data, desired_encoding='bgr8')
 
+
         # Convert image to HSV
         current_frame_hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
         # Create mask for range of colours (HSV low values, HSV high values)
-        #current_frame_mask = cv2.inRange(current_frame_hsv,(70, 0, 50), (150, 255, 255))
-        current_frame_mask = cv2.inRange(current_frame_hsv,(0, 150, 50), (255, 255, 255)) # orange
+        #current_frame_mask = cv2.inRange(current_frame_hsv,(70, 0, 50), (150, 255, 255)) # Change the values here to apply a colour mask, right now it's set to red
+        current_frame_mask = cv2.inRange(current_frame_hsv,(0, 150, 150), (255, 255, 255)) # orange
 
         contours, hierarchy = cv2.findContours(current_frame_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -74,6 +75,7 @@ class ColourChaser(Node):
                 else: # center of object is in a 100 px range in the center of the image so dont turn
                     #print("object in the center of image")
                     self.tw.angular.z=0.0
+                    self.tw.linear.x=0.5
                     
         else:
             print("No Centroid Found")
@@ -84,8 +86,8 @@ class ColourChaser(Node):
 
         # show the cv images
         current_frame_contours_small = cv2.resize(current_frame_contours, (0,0), fx=0.4, fy=0.4) # reduce image size
-        #cv2.imshow("Image window", current_frame_contours_small)
-        #cv2.waitKey(1)
+        cv2.imshow("Image window", current_frame_contours_small)
+        cv2.waitKey(1)
 
 def main(args=None):
     print('Starting colour_chaser.py.')

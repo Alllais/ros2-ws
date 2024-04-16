@@ -60,23 +60,30 @@ class OpencvBridge(Node):
         cv2.namedWindow("Image window")
         cv2.namedWindow("blur")
         cv2.namedWindow("canny")
+        cv2.namedWindow("red")
 
         # Convert ROS Image message to OpenCV image
         cv_image = self.br.imgmsg_to_cv2(data, desired_encoding='bgr8')
 
+        current_frame_hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+        current_frame_mask = cv2.inRange(current_frame_hsv,(0, 150, 150), (255, 255, 255)) # orange
+        red_img = cv2.bitwise_and(cv_image, cv_image, mask = current_frame_mask)
+        red_img_small = cv2.resize(red_img, (0,0), fx = 0.6, fy = 0.6)
+        cv2.imshow("red", red_img_small)
+
         gray_img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-        gray_img_small = cv2.resize(gray_img, (0,0), fx=0.2, fy=0.2) 
+        gray_img_small = cv2.resize(gray_img, (0,0), fx=0.6, fy=0.6) 
         print(np.mean(gray_img_small))
 
         blur_img = cv2.blur(gray_img, (3, 3))
-        blur_img_small = cv2.resize(blur_img, (0,0), fx=0.2, fy=0.2) # reduce image size
+        blur_img_small = cv2.resize(blur_img, (0,0), fx=0.6, fy=0.6) # reduce image size
         cv2.imshow("blur", blur_img_small)
 
         canny_img = cv2.Canny(gray_img, 10, 200)
-        canny_img_small = cv2.resize(canny_img, (0,0), fx=0.2, fy=0.2) # reduce image size
+        canny_img_small = cv2.resize(canny_img, (0,0), fx=0.6, fy=0.6) # reduce image size
         cv2.imshow("canny", canny_img_small)
 
-        cv_image_small = cv2.resize(cv_image, (0,0), fx=0.2, fy=0.2) # reduce image size
+        cv_image_small = cv2.resize(cv_image, (0,0), fx=0.6, fy=0.6) # reduce image size
         cv2.imshow("Image window", cv_image_small)
         cv2.waitKey(1)
 
