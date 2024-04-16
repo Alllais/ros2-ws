@@ -1,8 +1,13 @@
 # The `src/` directory
 
+The official name of the robot is "Boi vvall smol"
+
 All your ROS2 packages should be in here.
 
+environemnt setup
+ros2 run  uol_tidybot generate_objects --ros-args -p n_objects:=10
 ros2 launch uol_tidybot tidybot.launch.py
+
 rosdep install -i --from-path src --rosdistro humble -y //check for missing dependencies
 colcon build --packages-select py_pubsub //build the files
 source install/setup.bash
