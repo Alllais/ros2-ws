@@ -11,6 +11,7 @@ from cv_bridge import CvBridge # Package to convert between ROS and OpenCV Image
 import cv2
 import numpy as np
 from rclpy.executors import MultiThreadedExecutor
+from sensor_msgs.msg import LaserScan
 
 
 class ColourChaser(Node):
@@ -26,73 +27,89 @@ class ColourChaser(Node):
         # subscription to the depth camera topic
         self.create_subscription(Image, '/limo/depth_camera_link/depth/image_raw', self.depth_callback, 1)
 
+        self.create_subscription(LaserScan, '/scan', self.lidar_callback, 1)
+
         # Used to convert between ROS and OpenCV images
         self.br = CvBridge()
 
     def depth_callback(self, depth_data):
         depth_frame = self.br.imgmsg_to_cv2(depth_data, desired_encoding='32FC1')
-        cv2.imshow("Depth Image", depth_frame)
+        threshold_distance = 0.5
+        # print ("Checking if there is an object in front of the robot")
+        if (depth_frame < threshold_distance).any():
+            print("Object is close based on: depth camera")
+        
+        depth_frame_small = cv2.resize(depth_frame, (0,0), fx=0.6, fy=0.6) # reduce image size
+        cv2.imshow("Depth Image", depth_frame_small)
         cv2.waitKey(1)
 
-    def camera_callback(self, data):
-        #self.get_logger().info("camera_callback")
+    def lidar_callback(self, scan_data):
+        # Extract the ranges from the LaserScan message
+        ranges = scan_data.ranges
+        print("This is the min LIDAR range : ")
+        print(min(ranges))
+        min_distance = min(ranges)
+        threshold_distance = 0.2
+        self.is_obstacle_close = min_distance < threshold_distance
+
+    def find_centroid(self, contours):
+        centroid = None
+        max_area_threshold = 50000
+        if len(contours) > 0:
+            for contour in contours:
+                if max_area_threshold > cv2.contourArea(contour):
+                    # Find the centroid of the contour
+                    M = cv2.moments(contours[0])
+                    if M['m00'] > 0:
+                        cx = int(M['m10'] / M['m00'])
+                        cy = int(M['m01'] / M['m00'])
+                        print("Centroid of the biggest area: ({} ,{})".format(cx, cy))
+                        centroid = (cx, cy)
+        return centroid
+    
+    def movement(self, centroid, data):
+        self.tw = Twist()
+        if centroid:
+            cx, _ = centroid
+            if self.is_obstacle_close:
+                print("Obstacle is close")
+                self.tw.angular.z = 15.0
+                self.tw.linear.x = -15.0
+            elif cx < data.width / 3:
+                self.tw.angular.z = 0.3
+            elif cx >= 2 * data.width / 3:
+                self.tw.angular.z = -0.3
+            else:
+                self.tw.angular.z = 0.0
+                self.tw.linear.x = 100.0
+        else:
+            self.tw.angular.z = 0.3
+        self.pub_cmd_vel.publish(self.tw)
+
+    def camera_callback (self, data):
 
         # Convert ROS Image message to OpenCV image
         current_frame = self.br.imgmsg_to_cv2(data, 'bgr8')
 
         # Convert image to HSV
         current_frame_hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
-        # Create mask for range of colours (HSV low values, HSV high values)
-        #current_frame_mask = cv2.inRange(current_frame_hsv,(70, 0, 50), (150, 255, 255)) # Change the values here to apply a colour mask, right now it's set to red
-        current_frame_mask = cv2.inRange(current_frame_hsv,(0, 150, 150), (255, 255, 255)) # orange
 
-        contours, hierarchy = cv2.findContours(current_frame_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        # Sort by area (keep only the biggest one)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:1]
-
-        # Draw contour(s) (image to draw on, contours, contour number -1 to draw all contours, colour, thickness):
-        current_frame_contours = cv2.drawContours(current_frame, contours, 0, (255, 255, 0), 20)
-
-        self.tw=Twist() # twist message to publish
+        # Create a mask for range of colours (low , high)
+        current_frame_mask = cv2.inRange(current_frame_hsv, (0, 150, 0), (255,255,255))
         
-        if len(contours) > 0:
-            # find the centre of the contour: https://docs.opencv.org/3.4/d8/d23/classcv_1_1Moments.html
-            M = cv2.moments(contours[0]) # only select the largest controur
-            if M['m00'] > 0:
-                # find the centroid of the contour
-                cx = int(M['m10']/M['m00'])
-                cy = int(M['m01']/M['m00'])
-                print("Centroid of the biggest area: ({}, {})".format(cx, cy))
+        contours, _ = cv2.findContours(current_frame_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours = sorted(contours, key = cv2.contourArea, reverse = True)[:1]
+        centroid = self.find_centroid(contours)
+        self.movement(centroid, data)
 
-                # Draw a circle centered at centroid coordinates
-                # cv2.circle(image, center_coordinates, radius, color, thickness) -1 px will fill the circle
-                cv2.circle(current_frame, (round(cx), round(cy)), 5, (0, 255, 0), -1)
-                            
-                # find height/width of robot camera image from ros2 topic echo /camera/image_raw height: 1080 width: 1920
+        # Draw contours
+        current_frame_contours = cv2.drawContours(current_frame.copy(), contours, 0, (255, 255, 0), 20)
 
-                # if center of object is to the left of image center move left
-                if cx < data.width / 3:
-                    self.tw.angular.z=0.3
-                # else if center of object is to the right of image center move right
-                elif cx >= 2 * data.width / 3:
-                    self.tw.angular.z=-0.3
-                else: # center of object is in a 100 px range in the center of the image so dont turn
-                    #print("object in the center of image")
-                    self.tw.angular.z=0.0
-                    self.tw.linear.x=0.5
-                    
-        else:
-            print("No Centroid Found")
-            # turn until we can see a coloured object
-            self.tw.angular.z=0.3
-
-        self.pub_cmd_vel.publish(self.tw)
-
-        # show the cv images
-        current_frame_contours_small = cv2.resize(current_frame_contours, (0,0), fx=0.4, fy=0.4) # reduce image size
-        cv2.imshow("Image window", current_frame_contours_small)
+        # Show the processed frame
+        current_frame_contours_small = cv2.resize(current_frame_contours, (0,0), fx = 0.4, fy = 0.4)
+        cv2.imshow("Image Window", current_frame_contours_small)
         cv2.waitKey(1)
+                
 
 def main(args=None):
     print('Starting colour_chaser.py.')
