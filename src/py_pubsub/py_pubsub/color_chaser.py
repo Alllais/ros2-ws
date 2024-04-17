@@ -23,17 +23,22 @@ class ColourChaser(Node):
         # subscribe to the camera topic
         self.create_subscription(Image, '/limo/depth_camera_link/image_raw', self.camera_callback, 1)
 
+        # subscription to the depth camera topic
+        self.create_subscription(Image, '/limo/depth_camera_link/depth/image_raw', self.depth_callback, 1)
+
         # Used to convert between ROS and OpenCV images
         self.br = CvBridge()
+
+    def depth_callback(self, depth_data):
+        depth_frame = self.br.imgmsg_to_cv2(depth_data, desired_encoding='32FC1')
+        cv2.imshow("Depth Image", depth_frame)
+        cv2.waitKey(1)
 
     def camera_callback(self, data):
         #self.get_logger().info("camera_callback")
 
-        cv2.namedWindow("Image window", 1)
-
         # Convert ROS Image message to OpenCV image
-        current_frame = self.br.imgmsg_to_cv2(data, desired_encoding='bgr8')
-
+        current_frame = self.br.imgmsg_to_cv2(data, 'bgr8')
 
         # Convert image to HSV
         current_frame_hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
@@ -106,3 +111,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
