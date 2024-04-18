@@ -24,7 +24,9 @@ setup(
             'listener = py_pubsub.subscriber_member_function:main',
             'colour_chaser = py_pubsub.color_chaser:main',
             'vision = py_pubsub.openCV_Demo:main',
-            'fancy_footwork = py_pubsub.robot_control_strategy_todo:main'
+            'fancy_footwork = py_pubsub.simple_push:main',
+            'assessment = py_pubsub.assessment:main'
+
         ],
     },
 )
