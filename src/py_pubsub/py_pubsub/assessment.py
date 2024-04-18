@@ -34,6 +34,7 @@ class CombinedNode(Node):
             self.move_forward()
 
     def camera_callback(self, data):
+        # based on the color_chaser program from the workshops
         current_frame = self.br.imgmsg_to_cv2(data, desired_encoding='bgr8')
         current_frame_hsv = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
         current_frame_mask = cv2.inRange(current_frame_hsv, (0, 150, 50), (255, 255, 255))  # orange
